@@ -29,17 +29,12 @@ void multiplicar(double A[MAX][MAX], double B[MAX][MAX], double R[MAX][MAX], int
 
 int invertir(double A[MAX][MAX], double inv[MAX][MAX], int n) {
     double temp;
-    for (int i = 0; i < n; i++) {
-        // Matriz identidad
-        for (int j = 0; j < n; j++) {
+    for (int i = 0; i < n; i++)
+        for (int j = 0; j < n; j++)
             inv[i][j] = (i == j) ? 1.0 : 0.0;
-        }
-    }
 
-    // Gauss-Jordan
     for (int i = 0; i < n; i++) {
-        if (fabs(A[i][i]) < TOL) return 0; // Matriz no invertible
-
+        if (fabs(A[i][i]) < TOL) return 0;
         temp = A[i][i];
         for (int j = 0; j < n; j++) {
             A[i][j] /= temp;
@@ -68,9 +63,11 @@ void escribir_salida(FILE *archivo, char tipo, double R[MAX][MAX], int rows, int
     }
 }
 
-int main() {
-    FILE *entrada = fopen("entrada.ent", "r");
-    FILE *salida = fopen("salida_paralelo.sal", "w");
+int main(int argc, char *argv[]) {
+    const char *archivo_entrada = (argc > 1) ? argv[1] : "entrada.ent";
+
+    FILE *entrada = fopen(archivo_entrada, "r");
+    FILE *salida = fopen("salida.sal", "w");
     if (!entrada || !salida) {
         printf("Error abriendo archivos.\n");
         return 1;
@@ -81,11 +78,9 @@ int main() {
     double Inv[MAX][MAX], Resultado[MAX][MAX];
 
     leer_matriz(entrada, A, &m, &n);
-
     transpuesta(A, At, m, n);
 
     if (m <= n) {
-        // pseudoinversa derecha: R = At * inv(A*A^t)
         multiplicar(A, At, AAt, m, n, m);
         if (!invertir(AAt, Inv, m)) {
             fprintf(salida, "-1\n");
@@ -94,7 +89,6 @@ int main() {
         multiplicar(At, Inv, Resultado, n, m, m);
         escribir_salida(salida, 'R', Resultado, n, m);
     } else {
-        // pseudoinversa izquierda: L = inv(At*A) * At
         multiplicar(At, A, AA, n, m, n);
         if (!invertir(AA, Inv, n)) {
             fprintf(salida, "-1\n");
