@@ -1,70 +1,81 @@
-// Archivo: metricas.c
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
+#include <omp.h>
+#include <string.h>
 
 #define ENSAYOS 10
-#define MAX_POTENCIA 4
+#define MAX_HILOS 8
 
-int potencias[] = {2, 4, 8, 16};
+double promedio(double *tiempos, int n) {
+    double suma = 0.0;
+    for (int i = 0; i < n; i++) suma += tiempos[i];
+    return suma / n;
+}
 
-// Función para medir el tiempo de ejecución en segundos
-double medirTiempo(const char *comando) {
-    clock_t inicio = clock();
-    system(comando);
-    clock_t fin = clock();
-    return ((double)(fin - inicio)) / CLOCKS_PER_SEC;
+void copiar_archivo(const char *origen, const char *destino) {
+    FILE *src = fopen(origen, "r");
+    FILE *dst = fopen(destino, "w");
+    if (!src || !dst) {
+        printf("Error copiando %s a %s\n", origen, destino);
+        exit(1);
+    }
+    int c;
+    while ((c = fgetc(src)) != EOF)
+        fputc(c, dst);
+    fclose(src);
+    fclose(dst);
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("Uso: %s <archivo_entrada>\n", argv[0]);
+    if (argc != 2) {
+        printf("Uso: %s entrada_X.ent\n", argv[0]);
         return 1;
     }
 
-    const char *archivoEntrada = argv[1];
+    const char *archivo_entrada = argv[1];
+    const char *entrada_oficial = "entrada.ent";
 
-    // Compilar los programas una sola vez
-    system("gcc secuencial.c -o secuencial -lm");
-    system("gcc -fopenmp paralelo.c -o paralelo -lm");
+    copiar_archivo(archivo_entrada, entrada_oficial);
 
-    //para macOS segun tu instalacion de gcc con omp, ya que apple clang no incluye omp
-    //system("clang-omp paralelo.c -o paralelo -fopenmp -lm");
-
-    FILE *archivo = fopen("metricas.met", "w");
-    if (!archivo) {
-        perror("No se pudo abrir metricas.met");
+    FILE *fmet = fopen("metricas.met", "w");
+    if (!fmet) {
+        printf("No se pudo abrir metricas.met\n");
         return 1;
     }
 
-    fprintf(archivo, "Ensayo Hilos Speedup Eficiencia\n");
+    fprintf(fmet, "Ensayo,Hilos,Tiempo_Paralelo,Speedup,Eficiencia\n");
 
-    // Tiempo secuencial promedio
-    double tiempoSecTotal = 0.0;
+    double tiempos_seq[ENSAYOS];
+    double tiempos_par[ENSAYOS];
+
+    // Medir secuencial una vez para referencia
     for (int i = 0; i < ENSAYOS; i++) {
-        tiempoSecTotal += medirTiempo("./secuencial entrada.ent");
+        double start = omp_get_wtime();
+        system("./secuencial > /dev/null");
+        double end = omp_get_wtime();
+        tiempos_seq[i] = end - start;
     }
-    double tiempoSec = tiempoSecTotal / ENSAYOS;
 
-    // Para cada potencia de hilos
-    for (int p = 0; p < MAX_POTENCIA; p++) {
-        int hilos = potencias[p];
-        double tiempoParTotal = 0.0;
+    double t_prom_seq = promedio(tiempos_seq, ENSAYOS);
+    printf("Tiempo promedio secuencial: %.6f segundos\n\n", t_prom_seq);
 
-        for (int j = 0; j < ENSAYOS; j++) {
-            char comando[256];
-            sprintf(comando, "OMP_NUM_THREADS=%d ./paralelo entrada.ent", hilos);
-            tiempoParTotal += medirTiempo(comando);
+    for (int hilos = 1; hilos <= MAX_HILOS; hilos *= 2) {
+        for (int i = 0; i < ENSAYOS; i++) {
+            char cmd[128];
+            snprintf(cmd, sizeof(cmd), "OMP_NUM_THREADS=%d ./paralelo > /dev/null", hilos);
+            double start = omp_get_wtime();
+            system(cmd);
+            double end = omp_get_wtime();
+            tiempos_par[i] = end - start;
+
+            double speedup = t_prom_seq / tiempos_par[i];
+            double eficiencia = speedup / hilos;
+
+            fprintf(fmet, "%d,%d,%.6f,%.6f,%.6f\n", i + 1, hilos, tiempos_par[i], speedup, eficiencia);
         }
-
-        double tiempoPar = tiempoParTotal / ENSAYOS;
-        double speedup = tiempoSec / tiempoPar;
-        double eficiencia = speedup / hilos;
-
-        fprintf(archivo, "%d %d %.10f %.10f\n", p + 1, hilos, speedup, eficiencia);
     }
 
-    fclose(archivo);
-    printf("Archivo metricas.met generado correctamente.\n");
+    fclose(fmet);
+    printf("Resultados guardados en metricas.met\n");
     return 0;
 }

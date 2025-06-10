@@ -3,176 +3,108 @@
 #include <math.h>
 
 #define MAX 100
-#define EPSILON 1e-8
+#define TOL 1e-6
 
-int m, n;
-double A[MAX][MAX];
-double At[MAX][MAX];
+void leer_matriz(FILE *archivo, double A[MAX][MAX], int *m, int *n) {
+    fscanf(archivo, "%d %d", m, n);
+    for (int i = 0; i < *m; i++)
+        for (int j = 0; j < *n; j++)
+            fscanf(archivo, "%lf", &A[i][j]);
+}
 
-// Lee la matriz desde el archivo de entrada
-void leerEntrada(const char *nombreArchivo) {
-    FILE *archivo = fopen(nombreArchivo, "r");
-    if (!archivo) {
-        fprintf(stderr, "Error: No se pudo abrir el archivo de entrada\n");
-        exit(EXIT_FAILURE);
-    }
-    fscanf(archivo, "%d %d", &m, &n);
+void transpuesta(double A[MAX][MAX], double At[MAX][MAX], int m, int n) {
     for (int i = 0; i < m; i++)
         for (int j = 0; j < n; j++)
-            fscanf(archivo, "%lf", &A[i][j]);
-    fclose(archivo);
+            At[j][i] = A[i][j];
 }
 
-void transponer(double origen[MAX][MAX], double destino[MAX][MAX], int filas, int columnas) {
-    for (int i = 0; i < filas; i++)
-        for (int j = 0; j < columnas; j++)
-            destino[j][i] = origen[i][j];
+void multiplicar(double A[MAX][MAX], double B[MAX][MAX], double R[MAX][MAX], int r, int c, int p) {
+    for (int i = 0; i < r; i++)
+        for (int j = 0; j < p; j++) {
+            R[i][j] = 0.0;
+            for (int k = 0; k < c; k++)
+                R[i][j] += A[i][k] * B[k][j];
+        }
 }
 
-void multiplicar(double A[MAX][MAX], int filasA, int columnasA,
-                 double B[MAX][MAX], int columnasB,
-                 double resultado[MAX][MAX]) {
-    for (int i = 0; i < filasA; i++) {
-        for (int j = 0; j < columnasB; j++) {
-            resultado[i][j] = 0;
-            for (int k = 0; k < columnasA; k++)
-                resultado[i][j] += A[i][k] * B[k][j];
+int invertir(double A[MAX][MAX], double inv[MAX][MAX], int n) {
+    double temp;
+    for (int i = 0; i < n; i++) {
+        // Matriz identidad
+        for (int j = 0; j < n; j++) {
+            inv[i][j] = (i == j) ? 1.0 : 0.0;
         }
     }
-}
 
-void copiarMatriz(double origen[MAX][MAX], double destino[MAX][MAX], int tam) {
-    for (int i = 0; i < tam; i++)
-        for (int j = 0; j < tam; j++)
-            destino[i][j] = origen[i][j];
-}
+    // Gauss-Jordan
+    for (int i = 0; i < n; i++) {
+        if (fabs(A[i][i]) < TOL) return 0; // Matriz no invertible
 
-int invertir(double matriz[MAX][MAX], double inversa[MAX][MAX], int tam) {
-    for (int i = 0; i < tam; i++)
-        for (int j = 0; j < tam; j++)
-            inversa[i][j] = (i == j) ? 1.0 : 0.0;
-
-    for (int i = 0; i < tam; i++) {
-        double pivote = matriz[i][i];
-        if (fabs(pivote) < EPSILON)
-            return 0;
-
-        for (int j = 0; j < tam; j++) {
-            matriz[i][j] /= pivote;
-            inversa[i][j] /= pivote;
+        temp = A[i][i];
+        for (int j = 0; j < n; j++) {
+            A[i][j] /= temp;
+            inv[i][j] /= temp;
         }
-
-        for (int k = 0; k < tam; k++) {
+        for (int k = 0; k < n; k++) {
             if (k == i) continue;
-            double factor = matriz[k][i];
-            for (int j = 0; j < tam; j++) {
-                matriz[k][j] -= factor * matriz[i][j];
-                inversa[k][j] -= factor * inversa[i][j];
+            temp = A[k][i];
+            for (int j = 0; j < n; j++) {
+                A[k][j] -= A[i][j] * temp;
+                inv[k][j] -= inv[i][j] * temp;
             }
         }
     }
     return 1;
 }
 
-void guardarSalidaInvalida() {
-    FILE *salida = fopen("salida.sal", "w");
-    fprintf(salida, "-1\n");
-    fclose(salida);
-}
-
-void guardarSalida(char tipo, double matriz[MAX][MAX], int filas, int columnas) {
-    FILE *salida = fopen("salida.sal", "w");
-    if (!salida) {
-        fprintf(stderr, "Error: No se pudo escribir salida.sal\n");
-        exit(EXIT_FAILURE);
-    }
-    fprintf(salida, "%c\n", tipo);
-    for (int i = 0; i < filas; i++) {
-        for (int j = 0; j < columnas; j++)
-            fprintf(salida, "%.10f ", matriz[i][j]);
-        fprintf(salida, "\n");
-    }
-    fclose(salida);
-}
-
-int calcularRango(double matriz[MAX][MAX], int filas, int columnas) {
-    double temp[MAX][MAX];
-    for (int i = 0; i < filas; i++)
-        for (int j = 0; j < columnas; j++)
-            temp[i][j] = matriz[i][j];
-
-    int rango = 0;
-    for (int col = 0; col < columnas; col++) {
-        int filaPivote = -1;
-        for (int fila = rango; fila < filas; fila++) {
-            if (fabs(temp[fila][col]) > EPSILON) {
-                filaPivote = fila;
-                break;
-            }
+void escribir_salida(FILE *archivo, char tipo, double R[MAX][MAX], int rows, int cols) {
+    fprintf(archivo, "%c\n", tipo);
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            fprintf(archivo, "%.6lf", R[i][j]);
+            if (j < cols - 1) fprintf(archivo, " ");
         }
-        if (filaPivote == -1) continue;
-
-        if (filaPivote != rango) {
-            for (int k = 0; k < columnas; k++) {
-                double tmp = temp[rango][k];
-                temp[rango][k] = temp[filaPivote][k];
-                temp[filaPivote][k] = tmp;
-            }
-        }
-
-        for (int fila = rango + 1; fila < filas; fila++) {
-            double factor = temp[fila][col] / temp[rango][col];
-            for (int k = col; k < columnas; k++)
-                temp[fila][k] -= factor * temp[rango][k];
-        }
-        rango++;
-    }
-    return rango;
-}
-
-void calcularPseudoinversa() {
-    int rango = calcularRango(A, m, n);
-    if (rango < ((m < n) ? m : n)) {
-        guardarSalidaInvalida();
-        return;
-    }
-
-    transponer(A, At, m, n);
-
-    if (m >= n) {
-        double AtA[MAX][MAX], invAtA[MAX][MAX], resultado[MAX][MAX];
-        multiplicar(At, n, m, A, n, AtA);
-        double copia[MAX][MAX];
-        copiarMatriz(AtA, copia, n);
-
-        if (!invertir(copia, invAtA, n)) {
-            guardarSalidaInvalida();
-            return;
-        }
-        multiplicar(invAtA, n, n, At, m, resultado);
-        guardarSalida('L', resultado, n, m);
-
-    } else {
-        double AAt[MAX][MAX], invAAt[MAX][MAX], resultado[MAX][MAX];
-        multiplicar(A, m, n, At, m, AAt);
-        double copia[MAX][MAX];
-        copiarMatriz(AAt, copia, m);
-
-        if (!invertir(copia, invAAt, m)) {
-            guardarSalidaInvalida();
-            return;
-        }
-        multiplicar(At, n, m, invAAt, m, resultado);
-        guardarSalida('R', resultado, n, m);
+        fprintf(archivo, "\n");
     }
 }
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("Uso: %s <archivo>\n", argv[0]);
+int main() {
+    FILE *entrada = fopen("entrada.ent", "r");
+    FILE *salida = fopen("salida_paralelo.sal", "w");
+    if (!entrada || !salida) {
+        printf("Error abriendo archivos.\n");
         return 1;
     }
-    leerEntrada(argv[1]);
-    calcularPseudoinversa();
+
+    int m, n;
+    double A[MAX][MAX], At[MAX][MAX], AA[MAX][MAX], AAt[MAX][MAX];
+    double Inv[MAX][MAX], Resultado[MAX][MAX];
+
+    leer_matriz(entrada, A, &m, &n);
+
+    transpuesta(A, At, m, n);
+
+    if (m <= n) {
+        // pseudoinversa derecha: R = At * inv(A*A^t)
+        multiplicar(A, At, AAt, m, n, m);
+        if (!invertir(AAt, Inv, m)) {
+            fprintf(salida, "-1\n");
+            return 0;
+        }
+        multiplicar(At, Inv, Resultado, n, m, m);
+        escribir_salida(salida, 'R', Resultado, n, m);
+    } else {
+        // pseudoinversa izquierda: L = inv(At*A) * At
+        multiplicar(At, A, AA, n, m, n);
+        if (!invertir(AA, Inv, n)) {
+            fprintf(salida, "-1\n");
+            return 0;
+        }
+        multiplicar(Inv, At, Resultado, n, n, m);
+        escribir_salida(salida, 'L', Resultado, n, m);
+    }
+
+    fclose(entrada);
+    fclose(salida);
     return 0;
 }
