@@ -1,12 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <omp.h>
+#include <omp.h>  // Biblioteca para paralelismo en OpenMP
 
-#define MAX 100
-#define TOL 1e-6
+#define MAX 100        // Tamaño máximo de la matriz
+#define TOL 1e-6       // Tolerancia para detección de pivotes casi nulos
 
-// Leer matriz desde archivo
+// Lee la matriz A desde archivo y almacena dimensiones m (filas) y n (columnas)
 void leer_matriz(FILE *archivo, double A[MAX][MAX], int *m, int *n) {
     fscanf(archivo, "%d %d", m, n);
     for (int i = 0; i < *m; i++)
@@ -14,7 +14,8 @@ void leer_matriz(FILE *archivo, double A[MAX][MAX], int *m, int *n) {
             fscanf(archivo, "%lf", &A[i][j]);
 }
 
-// Transponer matriz
+// Calcula la transpuesta de A y guarda el resultado en At
+// Uso de paralelismo colapsando dos bucles (mejor aprovechamiento de hilos)
 void transpuesta(double A[MAX][MAX], double At[MAX][MAX], int m, int n) {
     #pragma omp parallel for collapse(2)
     for (int i = 0; i < m; i++)
@@ -22,7 +23,8 @@ void transpuesta(double A[MAX][MAX], double At[MAX][MAX], int m, int n) {
             At[j][i] = A[i][j];
 }
 
-// Multiplicar matrices
+// Multiplica dos matrices: A (r×c) y B (c×p), resultado en R (r×p)
+// El paralelismo se aplica sobre las filas de R
 void multiplicar(double A[MAX][MAX], double B[MAX][MAX], double R[MAX][MAX], int r, int c, int p) {
     #pragma omp parallel for
     for (int i = 0; i < r; i++) {
@@ -35,16 +37,19 @@ void multiplicar(double A[MAX][MAX], double B[MAX][MAX], double R[MAX][MAX], int
     }
 }
 
-// Invertir matriz con Gauss-Jordan (sin paralelismo por estabilidad)
+// Inversión de matriz cuadrada por método de Gauss-Jordan
+// No paralelizado por razones de estabilidad y dependencia de datos
 int invertir(double A[MAX][MAX], double inv[MAX][MAX], int n) {
     double temp;
 
+    // Inicializa la matriz identidad
     for (int i = 0; i < n; i++)
         for (int j = 0; j < n; j++)
             inv[i][j] = (i == j) ? 1.0 : 0.0;
 
+    // Eliminación hacia adelante y atrás
     for (int i = 0; i < n; i++) {
-        if (fabs(A[i][i]) < TOL) return 0;
+        if (fabs(A[i][i]) < TOL) return 0;  // Si el pivote es muy pequeño, no se puede invertir
 
         temp = A[i][i];
         for (int j = 0; j < n; j++) {
@@ -64,7 +69,7 @@ int invertir(double A[MAX][MAX], double inv[MAX][MAX], int n) {
     return 1;
 }
 
-// Escribir resultado
+// Escribe en archivo el tipo de pseudoinversa ('R' o 'L') y la matriz resultante
 void escribir_salida(FILE *archivo, char tipo, double R[MAX][MAX], int rows, int cols) {
     fprintf(archivo, "%c\n", tipo);
     for (int i = 0; i < rows; i++) {
@@ -80,7 +85,7 @@ int main(int argc, char *argv[]) {
     const char *archivo_entrada = (argc > 1) ? argv[1] : "entrada.ent";
 
     FILE *entrada = fopen(archivo_entrada, "r");
-    FILE *salida = fopen("salida_paralelo.sal", "w");
+    FILE *salida = fopen("salida.sal", "w");  // Se escribe en salida.sal (igual que en secuencial)
 
     if (!entrada || !salida) {
         fprintf(stderr, "Error abriendo archivos.\n");
@@ -91,15 +96,14 @@ int main(int argc, char *argv[]) {
     double A[MAX][MAX], At[MAX][MAX], AA[MAX][MAX], AAt[MAX][MAX];
     double Inv[MAX][MAX], Resultado[MAX][MAX];
 
-    leer_matriz(entrada, A, &m, &n);
-    transpuesta(A, At, m, n);
-
-    double start = omp_get_wtime();
+    leer_matriz(entrada, A, &m, &n);       // Lectura de la matriz A
+    transpuesta(A, At, m, n);              // Cálculo de transpuesta
 
     if (m <= n) {
+        // Cálculo de pseudoinversa derecha: A^+ = A^T * (A * A^T)^-1
         multiplicar(A, At, AAt, m, n, m);
         if (!invertir(AAt, Inv, m)) {
-            fprintf(salida, "-1\n");
+            fprintf(salida, "-1\n");       // No se pudo invertir, pseudoinversa no existe
             fclose(entrada);
             fclose(salida);
             return 0;
@@ -107,6 +111,7 @@ int main(int argc, char *argv[]) {
         multiplicar(At, Inv, Resultado, n, m, m);
         escribir_salida(salida, 'R', Resultado, n, m);
     } else {
+        // Cálculo de pseudoinversa izquierda: A^+ = (A^T * A)^-1 * A^T
         multiplicar(At, A, AA, n, m, n);
         if (!invertir(AA, Inv, n)) {
             fprintf(salida, "-1\n");
@@ -117,9 +122,6 @@ int main(int argc, char *argv[]) {
         multiplicar(Inv, At, Resultado, n, n, m);
         escribir_salida(salida, 'L', Resultado, n, m);
     }
-
-    double end = omp_get_wtime();
-    printf("Tiempo: %.6f segundos\n", end - start);
 
     fclose(entrada);
     fclose(salida);

@@ -7,8 +7,7 @@
 - `metricas.c` : Script para calcular speedup y eficiencia.
 - `entrada.ent` : Archivo de entrada de prueba.
 - `entrada1.ent` : Archivo de entrada adicional de mayor tamaño.
-- `salida.sal` : Resultado generado por el código secuencial.
-- `salida_paralela.sal` : Resultado generado por el código paralelo.
+- `salida.sal` : Resultado generado por el código secuencial y paralelo.
 - `metricas.met` : Resultados de las métricas de ejecución.
 
 ---
@@ -65,13 +64,13 @@ clang-omp paralelo.c -o paralelo -fopenmp -lm
    O si usas LLVM instalado manualmente:
 
 ```bash
-clang paralelo.c -o paralelo -Xpreprocessor -fopenmp -lomp -lm
+clang-omp paralelo.c -o paralelo -fopenmp -lm
 ```
 
 1. **Compilar script de métricas**
 
 ```bash
-gcc metricas.c -o metricas -lm
+clang-omp metricas.c -o metricas -fopenmp -lm
 ```
 
 ---
@@ -93,7 +92,7 @@ gcc -fopenmp paralelo.c -o paralelo -lm
 1. **Compilar script de métricas**
 
 ```bash
-gcc metricas.c -o metricas -lm
+gcc -fopenmp metricas.c -o metricas -lm
 ```
 
 ---
