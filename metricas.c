@@ -1,3 +1,10 @@
+/*
+ * Autores: Tomas Poblete Chamorro, Cristobal Perez Ramirez
+ * Carrera: Ingeniería Civil Informática
+ * Fecha: 10 de Junio de 2025
+ * Propósito: Cálculo de Metricas
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <omp.h>
